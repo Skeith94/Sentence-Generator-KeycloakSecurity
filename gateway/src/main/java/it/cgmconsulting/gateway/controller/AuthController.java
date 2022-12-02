@@ -8,7 +8,6 @@ import it.cgmconsulting.gateway.payload.Credentials;
 import it.cgmconsulting.gateway.payload.RegisterRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -18,54 +17,41 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 @RestController
 public class AuthController {
 
-    @Autowired
-    WebClient webClient;
+    @Autowired  WebClient webClient;
+
     @PostMapping("/signup")
-    public Mono<ResponseEntity<?>> fallbackSubject(@RequestBody RegisterRequest registerRequest){
+    public Mono<ResponseEntity<String>> signup(@RequestBody RegisterRequest registerRequest){
 
-
-        String url = Constants.AUTH_URL;
-        String addUserUrl=Constants.ADD_USER_URL;
-
-
-        MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
+        MultiValueMap<String, String> map = new LinkedMultiValueMap<String, String>();
         map.add("username", Constants.ADMIN_USERNAME);
         map.add("password", Constants.ADMIN_PASSWORD);
         map.add("grant_type","password");
         map.add("client_id", "admin-cli");
 
+        AtomicInteger status = new AtomicInteger(300);
 
-         Mono<String>result=
-                webClient.post().uri(url)
+        return webClient.post().uri(Constants.AUTH_URL)
                 .bodyValue(map)
                 .retrieve()
                 .bodyToMono(AdminResponse.class)
-                .mapNotNull(response->"Bearer "+response.getAccess_token())
-                .log();
+                .flatMap(token -> {
+                    return webClient.post().uri(Constants.ADD_USER_URL)
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getAccess_token())
+                            .bodyValue(new AddUserRequest(registerRequest.getUsername(), new Credentials(registerRequest.getPassword())))
+                            .retrieve()
+                            .bodyToMono(String.class)
+                            .doOnError(err -> {
+                                status.set(400);
+                            })
+                            .onErrorResume(err -> Mono.just(err.getMessage()));
+                })
+            .map(r -> ResponseEntity.status(status.get()).body(r));
 
-
-      return   result.mapNotNull( tokenResult->
-                   {
-               return   webClient.post()
-                               .uri(Constants.ADD_USER_URL)
-                               .header(HttpHeaders.AUTHORIZATION, tokenResult)
-                               .accept(MediaType.APPLICATION_JSON)
-                               .bodyValue(new AddUserRequest(registerRequest.getUsername(), new Credentials(registerRequest.getPassword())))
-                               .retrieve()
-                               .bodyToMono(String.class)
-                              .onErrorReturn("username or password already found")
-                              ;
-
-
-                       }).map(ResponseEntity::ok);
-
-
-                   }
-
-
-
+    }
 }
 
