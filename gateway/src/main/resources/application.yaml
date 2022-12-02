@@ -1,0 +1,98 @@
+server:
+  port: 8080
+
+app:
+  security:
+    clientId: "spring_keycloak_PROVA"
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            scope:
+              - openid
+            authorization-grant-type: authorization_code
+            client-id: Gateway
+        provider:
+          keycloak:
+            user-name-attribute: preferred_username
+            issuer-uri: http://localhost:7070/realms/Gateway
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:7070/realms/Gateway
+  main:
+    allow-bean-definition-overriding: true
+    web-application-type: reactive
+  application:
+    name: gateway
+
+  cloud:
+    gateway:
+      routes:
+        - id: login
+          uri: http://localhost:7070/realms/Gateway/protocol/openid-connect/token
+          predicates:
+            - Path=/login
+          filters:
+            - SetPath=http://localhost:7070/realms/Gateway/protocol/openid-connect/token
+
+        - id: subject
+          uri: lb://subject
+          predicates:
+            - Path=/subject
+          filters:
+            - SetPath=/
+            - name: CircuitBreaker
+              args:
+                name: SubjectCircuitBreaker
+                fallbackUri: forward:/fallback/subject
+
+        - id: verb
+          uri: lb://verb
+          predicates:
+            - Path=/verb
+          filters:
+            - SetPath=/
+            - name: CircuitBreaker
+              args:
+                name: VerbCircuitBreaker
+                fallbackUri: forward:/fallback/verb
+
+        - id: object
+          uri: lb://object
+          predicates:
+            - Path=/object
+          filters:
+            - SetPath=/
+            - name: CircuitBreaker
+              args:
+                name: ObjectCircuitBreaker
+                fallbackUri: forward:/fallback/object
+
+        - id: sentence
+          uri: lb://sentence
+          predicates:
+            - Path=/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: SentenceCircuitBreaker
+                fallbackUri: forward:/fallback/sentence
+
+logging:
+  level:
+    org:
+      springframework:
+        cloud:
+          gateway: trace
+        web:
+          server: trace
+eureka:
+  client:
+    service-url:
+      default-zone: http:localhost:8761/eureka
+
+  instance:
+    hostname: host.docker.internal
