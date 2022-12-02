@@ -56,7 +56,7 @@ public class AuthController {
                                .bodyValue(new AddUserRequest(registerRequest.getUsername(), new Credentials(registerRequest.getPassword())))
                                .retrieve()
                                .bodyToMono(String.class)
-                              .onErrorReturn("username e password already found")
+                              .onErrorReturn("username or password already found")
                               ;
 
 
