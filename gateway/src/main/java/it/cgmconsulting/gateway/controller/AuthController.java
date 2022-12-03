@@ -44,11 +44,11 @@ public class AuthController {
                             .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.getAccess_token())
                             .bodyValue(new AddUserRequest(registerRequest.getUsername(), new Credentials(registerRequest.getPassword())))
                             .retrieve()
-                            .bodyToMono(String.class)
-                            .doOnError(err -> {
+                            .bodyToMono(String.class)                         
+                            .onErrorResume(err -> {
                                 status.set(400);
-                            })
-                            .onErrorResume(err -> Mono.just(err.getMessage()));
+                                return Mono.just(err.getMessage());
+                            });
                 })
             .map(r -> ResponseEntity.status(status.get()).body(r));
 
