@@ -46,7 +46,7 @@ public class AuthController {
                             .retrieve()
                             .bodyToMono(String.class)                         
                             .onErrorResume(err -> {
-                                status.set(400);
+                                status.set(Integer.parseInt(err.getMessage().split(" ")[0]));
                                 return Mono.just(err.getMessage());
                             });
                 })
